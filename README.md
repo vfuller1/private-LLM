@@ -7,12 +7,14 @@ the language model, the embeddings, and the vector database all run on your mach
 
 A small Python program that:
 
-1. Reads PDFs and text files from a `docs/` folder.
+1. Reads PDFs, Word `.docx`, and text files from a `docs/` folder.
 2. Splits them into chunks and converts each chunk into a numerical "embedding"
    using a local model.
 3. Stores those embeddings in a local vector database (Chroma — just files on disk).
 4. When you ask a question, finds the most relevant chunks and feeds them to a
    local LLM (via Ollama), which answers using only that context.
+5. Includes a built-in quiz mode that generates multiple-choice tests on the
+   topics in your indexed documents — useful for studying.
 
 This pattern is called **RAG** (Retrieval-Augmented Generation) and is the most
 common way enterprises put LLMs to work on their own data.
@@ -119,21 +121,47 @@ Re-run this any time you add, change, or remove documents.
 
 ## Step 6 — Chat with your docs
 
-```bash
+```powershell
 python chat.py
 ```
 
 You'll get a prompt:
 
 ```
-Ask My Docs (model: llama3.2:3b) — type 'quit' to exit.
+Ask My Docs (model: llama3.1:8b) — type 'quit' to exit.
 
 You: What is RAG?
 Assistant: ...
 Sources:
+  - rag.md (chunk 2)
   - sample_private_llms.txt (chunk 4)
-  - sample_private_llms.txt (chunk 7)
 ```
+
+## Step 7 — Take a quiz on what you've indexed
+
+The project ships with seven in-depth knowledge documents in `docs/`
+covering **AI governance, RAG, MCP, embeddings, chunking, agent
+architecture, and vector search**. Once you've run `python ingest.py`,
+you can quiz yourself on any of them:
+
+```powershell
+python quiz.py
+```
+
+You'll see a numbered menu of topics. Pick one (or "Random"), and the
+local LLM will generate 5 multiple-choice questions grounded in the
+indexed material, score your answers, and show explanations.
+
+You can also pass a topic directly:
+
+```powershell
+python quiz.py --topic "vector search" --n 10
+python quiz.py --topic random
+python quiz.py --topic "my own custom topic"
+```
+
+The quiz works on whatever is in your `chroma_db/` — drop your own
+study materials into `docs/`, re-ingest, and quiz yourself on those.
 
 ## What's going on under the hood
 

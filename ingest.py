@@ -45,11 +45,11 @@ def load_docx(path: Path) -> str:
     Extract text from a Word .docx file.
 
     We pull text from paragraphs and from any tables in the document.
-    Old .doc files (Word 97–2003 format) are NOT supported — convert
-    them to .docx in Word first (File → Save As → .docx).
+    Old .doc files (Word 97-2003 format) are NOT supported - convert
+    them to .docx in Word first (File > Save As > .docx).
     """
     doc = Document(str(path))
-    parts: list[str] = [p.text for p in doc.paragraphs if p.text.strip()]
+    parts = [p.text for p in doc.paragraphs if p.text.strip()]
     for table in doc.tables:
         for row in table.rows:
             row_text = " | ".join(cell.text.strip() for cell in row.cells)
@@ -74,7 +74,7 @@ def load_document(path: Path) -> str:
 # Chunking
 # ---------------------------------------------------------------------------
 
-def chunk_text(text: str, size: int, overlap: int) -> list[str]:
+def chunk_text(text, size, overlap):
     """
     Split text into overlapping chunks of roughly `size` characters.
 
@@ -86,7 +86,7 @@ def chunk_text(text: str, size: int, overlap: int) -> list[str]:
     if not text:
         return []
 
-    chunks: list[str] = []
+    chunks = []
     start = 0
     step = max(1, size - overlap)
 
@@ -106,7 +106,7 @@ def chunk_text(text: str, size: int, overlap: int) -> list[str]:
 # Embedding
 # ---------------------------------------------------------------------------
 
-def embed_one(text: str) -> list[float]:
+def embed_one(text):
     """
     Ask Ollama to turn a string into a vector using the embedding model.
     The vector is a list of floats representing the text's meaning.
@@ -119,22 +119,19 @@ def embed_one(text: str) -> list[float]:
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    docs_dir: Path = config.DOCS_DIR
+def main():
+    docs_dir = config.DOCS_DIR
     if not docs_dir.exists():
         print(f"No docs folder found at {docs_dir}.")
-        print("Create it and drop some .pdf/.txt files inside, then re-run.")
+        print("Create it and drop some .pdf/.docx/.txt/.md files inside, then re-run.")
         sys.exit(1)
 
-    # Connect to (or create) a persistent Chroma DB stored as files on disk.
     client = chromadb.PersistentClient(path=str(config.DB_DIR))
 
-    # Start fresh each time so we don't accumulate stale chunks.
-    # For a real app you'd diff and only update what changed.
     try:
         client.delete_collection(config.COLLECTION_NAME)
     except Exception:
-        pass  # collection didn't exist yet — fine
+        pass
     collection = client.create_collection(config.COLLECTION_NAME)
 
     files = sorted(
@@ -148,9 +145,9 @@ def main() -> None:
 
     print(f"Loading documents from {docs_dir}/")
 
-    all_ids: list[str] = []
-    all_documents: list[str] = []
-    all_metadatas: list[dict] = []
+    all_ids = []
+    all_documents = []
+    all_metadatas = []
 
     for path in files:
         try:
@@ -168,14 +165,12 @@ def main() -> None:
             all_metadatas.append({"source": path.name, "chunk": i})
 
     if not all_documents:
-        print("Nothing to embed — exiting.")
+        print("Nothing to embed - exiting.")
         sys.exit(1)
 
     print(f"Embedding {len(all_documents)} chunks with {config.EMBED_MODEL}...")
 
-    # Embed one at a time. Ollama's API doesn't batch, but this is plenty
-    # fast for a personal knowledge base.
-    embeddings: list[list[float]] = []
+    embeddings = []
     for idx, chunk in enumerate(all_documents, start=1):
         embeddings.append(embed_one(chunk))
         if idx % 10 == 0 or idx == len(all_documents):
@@ -189,7 +184,7 @@ def main() -> None:
     )
 
     print(f"Done. Stored {len(all_documents)} chunks in {config.DB_DIR}/")
-    print("Next step: run `python chat.py`")
+    print("Next step: run `python chat.py` or `python quiz.py`")
 
 
 if __name__ == "__main__":
