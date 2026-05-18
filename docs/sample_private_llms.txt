@@ -1,0 +1,120 @@
+A short primer on private LLMs
+==============================
+
+What is a private LLM?
+----------------------
+A private LLM is a large language model that runs entirely inside an
+environment you control. That can mean your own laptop, a server in your
+office, a virtual machine in your cloud account, or a managed service
+that contractually keeps your data inside your tenant. The defining
+property is that prompts, responses, and any documents you pass to the
+model never leave your boundary and are never used to train someone
+else's model.
+
+Public LLMs, by contrast, are accessed through an external API like
+OpenAI, Anthropic, or Google. The model itself lives on the provider's
+infrastructure, and your data is sent over the internet to be processed.
+
+Why people use private LLMs
+---------------------------
+1. Data privacy. Regulated industries (healthcare, finance, legal,
+   government) often cannot send customer or patient data to an outside
+   service. A private LLM keeps everything inside the existing security
+   perimeter.
+
+2. Compliance. Frameworks like HIPAA, GDPR, PCI-DSS, SOC 2, and
+   FedRAMP have strict requirements about where data lives and who can
+   see it. Running the model locally makes compliance much simpler.
+
+3. Cost at scale. Public APIs charge per token. If you process more
+   than roughly 10 to 30 million tokens per day, self-hosting an
+   open-weight model on your own GPUs is usually cheaper.
+
+4. Customization. You can fine-tune the model on your domain, change
+   its behavior with prompts or system messages, or even modify its
+   weights. None of that requires asking a vendor for permission.
+
+5. Reliability. A model running on your hardware doesn't go down when
+   a third-party provider has an outage, and isn't subject to surprise
+   pricing or API changes.
+
+Trade-offs
+----------
+Private LLMs are not free. You give up the convenience of always
+having the very latest frontier model, you take on the operational
+burden of hosting and updating the model yourself, and small open-weight
+models will not match the smartest closed models on hard reasoning
+tasks. Most enterprises end up using a mix: a public API for some
+workflows, a private model for sensitive or high-volume ones.
+
+How private LLMs run on a laptop
+--------------------------------
+Modern tools like Ollama, LM Studio, and llama.cpp make it possible to
+run capable open-weight models on consumer hardware. Models in the
+3 to 8 billion parameter range run comfortably on a laptop with 16 GB
+of RAM. Apple Silicon Macs are especially well-suited because the
+unified memory architecture lets the CPU and GPU share the same memory
+pool.
+
+Quantization is the trick that makes this possible. The original
+model weights are stored as 16-bit or 32-bit floating-point numbers,
+but they can be compressed down to 4-bit integers with only a small
+loss in quality. A 7-billion-parameter model that would normally need
+14 GB of memory then fits in about 4 GB.
+
+What is RAG?
+------------
+RAG stands for Retrieval-Augmented Generation. It is a pattern, not a
+specific product, that lets an LLM answer questions about documents
+the model has never seen during training.
+
+The pattern has three stages:
+
+1. Ingest. Split your documents into chunks, convert each chunk into
+   a vector embedding, and store the vectors in a database that
+   supports nearest-neighbor search.
+
+2. Retrieve. When a user asks a question, embed the question with
+   the same model, then ask the database for the chunks whose vectors
+   are closest to the question vector.
+
+3. Generate. Stuff the retrieved chunks into a prompt template and
+   ask the LLM to answer the question using only that context.
+
+RAG is the dominant way enterprises put LLMs to work on private data.
+It avoids the cost and complexity of fine-tuning, keeps answers
+grounded in source material, and makes citations easy because you
+already know which chunks the answer came from.
+
+Embeddings, briefly
+-------------------
+An embedding is a list of numbers — typically 384, 768, or 1536 of
+them — that represents the meaning of a piece of text. Two pieces of
+text with similar meanings will have embeddings that point in similar
+directions in that high-dimensional space. We measure similarity with
+cosine similarity, which is essentially the angle between two vectors.
+
+Embedding models are separate from chat models. A small embedding
+model like nomic-embed-text or all-MiniLM-L6-v2 is plenty for most
+RAG applications.
+
+Choosing a model size
+---------------------
+- 1 to 3 billion parameters: snappy on any modern laptop, good for
+  classification, extraction, and short summaries. Not great at
+  long-form reasoning.
+- 7 to 8 billion parameters: a comfortable sweet spot. Llama 3.1 8B
+  and Mistral 7B are the most popular choices.
+- 13 to 14 billion parameters: noticeably smarter, but you start to
+  want a dedicated GPU or 32 GB of RAM.
+- 70 billion parameters and up: approaches the quality of closed
+  frontier models but typically requires a workstation or a small
+  server with multiple GPUs.
+
+A practical starting point
+--------------------------
+For your first private LLM project, pick a model in the 3 to 8 billion
+parameter range, use Ollama to run it, and build a RAG app over a few
+documents you care about — meeting notes, a textbook, internal wiki
+pages, or your own writing. You will learn more from one weekend of
+hacking on that than from a month of reading about it.

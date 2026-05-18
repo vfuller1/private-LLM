@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Local vector database — rebuild with `python ingest.py`
+chroma_db/
+
+# Documents (don't commit your private docs to a public repo)
+# Comment this out if you want sample docs in the repo.
+# docs/*
+# !docs/sample_private_llms.txt
+# !docs/.gitkeep
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
