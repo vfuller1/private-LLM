@@ -42,4 +42,12 @@ COLLECTION_NAME = "ask_my_docs"
 # Documents are split into overlapping chunks before being embedded.
 # Roughly 500 characters ≈ 100 words — small enough to be specific,
 # big enough to contain a complete thought.
-CHUNK_SIZE = 500       # c
+CHUNK_SIZE = 500       # characters per chunk
+CHUNK_OVERLAP = 80     # characters of overlap between consecutive chunks
+
+
+# --- Retrieval ---
+
+# How many relevant chunks to feed the LLM for each question.
+# More = more context but slower and more chance of confusion.
+TOP_K = 4

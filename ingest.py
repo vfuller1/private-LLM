@@ -14,9 +14,14 @@ from pathlib import Path
 
 import chromadb
 import ollama
+from docx import Document
 from pypdf import PdfReader
 
 import config
+
+
+# File extensions this script knows how to read.
+SUPPORTED_EXTS = {".pdf", ".docx", ".txt", ".md"}
 
 
 # ---------------------------------------------------------------------------
@@ -35,11 +40,31 @@ def load_pdf(path: Path) -> str:
     return "\n\n".join(pages)
 
 
+def load_docx(path: Path) -> str:
+    """
+    Extract text from a Word .docx file.
+
+    We pull text from paragraphs and from any tables in the document.
+    Old .doc files (Word 97–2003 format) are NOT supported — convert
+    them to .docx in Word first (File → Save As → .docx).
+    """
+    doc = Document(str(path))
+    parts: list[str] = [p.text for p in doc.paragraphs if p.text.strip()]
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = " | ".join(cell.text.strip() for cell in row.cells)
+            if row_text.strip():
+                parts.append(row_text)
+    return "\n\n".join(parts)
+
+
 def load_document(path: Path) -> str:
     """Dispatch to the right loader based on file extension."""
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         return load_pdf(path)
+    if suffix == ".docx":
+        return load_docx(path)
     if suffix in {".txt", ".md"}:
         return load_text_file(path)
     raise ValueError(f"Unsupported file type: {suffix}")
@@ -114,10 +139,11 @@ def main() -> None:
 
     files = sorted(
         p for p in docs_dir.iterdir()
-        if p.is_file() and p.suffix.lower() in {".pdf", ".txt", ".md"}
+        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS
     )
     if not files:
-        print(f"No supported files in {docs_dir}. Add .pdf, .txt, or .md files.")
+        exts = ", ".join(sorted(SUPPORTED_EXTS))
+        print(f"No supported files in {docs_dir}. Add files of type: {exts}")
         sys.exit(1)
 
     print(f"Loading documents from {docs_dir}/")
